@@ -40,7 +40,9 @@ def sisf(dumpfile, nt, ndt, itype=0, qmax=1.0, nq=6, dt=0.002, maxframes=0):
     ic = 0
     res = []
     for window in window_iter(dump, width=nt, stride=ndt):
-        print("SISF: {}-th average.".format(ic))
+        istart = window[0]['index']
+        iend = window[-1]['index']
+        print("SISF: {:3d}-th average, [{:5d} to {:5d}].".format(ic, istart, iend))
         s = sisf_one(window, qgrid, itype)
         res.append(s)
         ic += 1
