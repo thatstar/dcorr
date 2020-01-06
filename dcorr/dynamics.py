@@ -33,7 +33,7 @@ def sisf_one(window, qgrid, itype=0):
     return np.array(res)
 
 
-def sisf(dumpfile, itype=0, qmax=1.0, nq=6, dt=0.002, maxframes=0, nt=1000, ndt=100):
+def sisf(dumpfile, nt, ndt, itype=0, qmax=1.0, nq=6, dt=0.002, maxframes=0):
     dump = read_dump(dumpfile, maxframes=maxframes, dt=dt)
     qgrid = lebedev_grid(nq)
     qgrid[:, 0:3] = qmax*qgrid[:, 0:3]
@@ -51,4 +51,3 @@ def sisf(dumpfile, itype=0, qmax=1.0, nq=6, dt=0.002, maxframes=0, nt=1000, ndt=
     s /= len(res)
 
     return np.c_[t, s]
-

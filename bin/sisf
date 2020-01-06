@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+
+import argparse
+import numpy as np
+from dcorr.dynamics import sisf
+
+
+def cmd_options():
+    parser = argparse.ArgumentParser(
+        description="Calculate self intermediate scattering functions."
+    )
+
+    addarg = parser.add_argument
+    addarg("nt", type=int, help="Window width to calculate correlations")
+    addarg("ndt", type=int, help="Shift of time origins at this many frames")
+    addarg("dt", type=float, help="Timestep size of MD run")
+    addarg("dumpfile", type=str, help="Name of LAMMPS dump files")
+    addarg("sisffile", type=str, help="Output of sisf results")
+    addarg("--itype", type=int, default=0, help="Type of atoms to include in calculate, 0 for all types")
+    addarg("--qmax", type=float, default=1.0, help="|q| value")
+    addarg("--nq", type=int, default=6, help="LL grid size: [6, 14, 26, 38, 50, 74]")
+    addarg("--maxframes", type=int, default=0, help="Number of frames read from dump, 0 for all frames")
+
+    return parser.parse_args()
+
+
+def main():
+    args = cmd_options()
+
+    res = sisf(args.dumpfile, args.nt, args.ndt, itype=args.itype, qmax=args.qmax,
+               nq=args.nq, dt=args.dt, maxframes=args.maxframes)
+
+    np.savetxt(args.sisffile, res)
+
+
+if __name__ == "__main__":
+    main()
