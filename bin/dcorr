@@ -7,7 +7,7 @@ from dcorr.dynamics import dynamics, type_masker
 
 def cmd_options():
     parser = argparse.ArgumentParser(
-        description="Calculate timedependent sisf sisfX4 msd alpha2 Qt and QtX4 values."
+        description="Calculate time-dependent sisf sisfX4 msd alpha2 Qt and QtX4 values."
     )
 
     addarg = parser.add_argument
