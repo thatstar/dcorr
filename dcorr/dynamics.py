@@ -1,8 +1,7 @@
-import math
+import sys
 import numpy as np
-from numba import njit
+import numexpr as ne
 from dcorr.dump import read_dump, window_iter
-from dcorr.lebedev import lebedev_grid
 
 
 def type_masker(itype=0):
@@ -16,78 +15,51 @@ def type_masker(itype=0):
     return masker
 
 
-@njit("f8(f8[:,:], f8[:,:])")
-def sisf_inner(dpos, qgrid):
-    s = 0.0
-    for i in range(qgrid.shape[0]):
-        for j in range(dpos.shape[0]):
-            s += qgrid[i, 3]*math.cos(np.sum(qgrid[i, 0:3]*dpos[j, 0:3]))
-
-    return s
-
-
-def dynamics_one(window, qgrid, rtol, masker):
-    res = []
-    rsqtol = rtol*rtol
-    for i, w in enumerate(window):
-        if i == 0:
-            tref = w['time']
-            posref = w['positions']
-            mask = masker(w)
-            nmasked = mask.sum()
-            assert nmasked > 0
-        tcurr = w['time']
-        pos = w['positions']
-        dpos = pos - posref
+def dynamics_one(window, mask, ncorr, qmax, rsqtol):
+    res = np.empty((ncorr - 1, 5))
+    res.fill(np.nan)
+    for i in range(1, len(window)):
+        dt = window[i]['time'] - window[0]['time']
+        dpos = window[i]['positions'] - window[0]['positions']
         dpos = dpos[mask]
-        t = tcurr - tref
-        sisf = sisf_inner(dpos, qgrid)
+        sisf = ne.evaluate("cos(qmax*dpos)").mean(axis=1).sum()
         dsq = np.square(dpos).sum(axis=1)
+        qt = ne.evaluate("dsq <= rsqtol").sum()
         msd = dsq.mean()
-        if np.all(dsq == 0):
-            alpha2 = 0
-        else:
-            alpha2 = (3/5)*(np.square(dsq).mean()/msd**2) - 1
-        qt = (dsq <= rsqtol).sum()
-        res.append([t, sisf, msd, alpha2, qt])
-    return nmasked, np.array(res)
+        alpha2 = (3/5)*(np.square(dsq).mean()/msd**2) - 1
+        res[i - 1, 0] = dt
+        res[i - 1, 1] = sisf
+        res[i - 1, 2] = qt
+        res[i - 1, 3] = msd
+        res[i - 1, 4] = alpha2
+    
+    return res
 
 
-def dynamics(dumpfile, nt, ndt, masker=type_masker(), qmax=1.0, nq=6, rtol=1.0, dt=0.002, maxframes=0):
+def dynamics(dumpfile, ncorr, nshift, masker=type_masker(), qmax=1.0, rtol=1.0, dt=0.002, maxframes=0):
     dump = read_dump(dumpfile, maxframes=maxframes, dt=dt)
-    qgrid = lebedev_grid(nq)
-    qgrid[:, 0:3] = qmax*qgrid[:, 0:3]
+    rsqtol = rtol*rtol
     ic = 0
-    res = []
-    for window in window_iter(dump, width=nt, stride=ndt):
+    s = []
+    for window in window_iter(dump, width=ncorr, stride=nshift):
         istart = window[0]['index']
         iend = window[-1]['index']
         print("DYNAMICS: {:3d}-th average, [{:5d} to {:5d}].".format(ic, istart, iend))
-        nmasked, s = dynamics_one(window, qgrid, rtol, masker=masker)
-        res.append(s)
+        sys.stdout.flush()
+        mask = masker(window[0])
+        nmasked = mask.sum()
+        assert nmasked > 0
+        s.append(dynamics_one(window, mask, ncorr, qmax, rsqtol))
         ic += 1
-    t = res[0][:, 0]
-    s1 = 0
-    s2 = 0
-    s3 = 0
-    s4 = 0
-    for i in res:
-        s1 += i[:,1]
-        s2 += i[:,2]
-        s3 += i[:,3]
-        s4 += i[:,4]
-    s1 /= len(res)
-    s2 /= len(res)
-    s3 /= len(res)
-    s4 /= len(res)
-    s1x4 = 0
-    s4x4 = 0
-    for i in res:
-        s1x4 += np.square(i[:,1]) - np.square(s1)
-        s4x4 += np.square(i[:,4]) - np.square(s4)
-    s1 /= nmasked
-    s4 /= nmasked
-    s1x4 /= len(res)*nmasked
-    s4x4 /= len(res)*nmasked
+    s = np.stack(s, axis=2)
+    res = np.zeros((ncorr - 1, 7))
+    res[:, 0] = s[:, 0, 0]
+    res[:, 1] = np.nanmean(s[:, 1, :], axis=1)/nmasked
+    res[:, 2] = (np.nanmean(s[:, 1, :]**2, axis=1) - np.nanmean(s[:, 1, :], axis=1)**2)/nmasked
+    res[:, 3] = np.nanmean(s[:, 2, :], axis=1)/nmasked
+    res[:, 4] = (np.nanmean(s[:, 2, :]**2, axis=1) - np.nanmean(s[:, 2, :], axis=1)**2)/nmasked
+    res[:, 5] = np.nanmean(s[:, 3, :], axis=1)
+    res[:, 6] = np.nanmean(s[:, 4, :], axis=1)
 
-    return np.c_[t, s1, s1x4, s2, s3, s4, s4x4]
+    return res
+

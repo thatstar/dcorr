@@ -11,14 +11,13 @@ def cmd_options():
     )
 
     addarg = parser.add_argument
-    addarg("nt", type=int, help="window width to calculate correlations")
-    addarg("ndt", type=int, help="shift time origin for this many frames")
+    addarg("ncorr", type=int, help="window width to calculate correlations")
+    addarg("nshift", type=int, help="shift time origin for this many frames")
     addarg("dt", type=float, help="timestep size of MD run")
     addarg("dumpfile", type=str, help="name of LAMMPS dump files")
     addarg("outputfile", type=str, help="name of output file")
     addarg("--itype", type=int, default=0, help="type of atoms to include in calculation, 0 for all types")
     addarg("--qmax", type=float, default=1.0, help="|q| value")
-    addarg("--nq", type=int, default=6, help="LL grid size: [6, 14, 26, 38, 50, 74]")
     addarg("--rtol", type=float, default=1.0, help="distance cutoff to check atom overlap")
     addarg("--maxframes", type=int, default=0, help="number of frames to read from dump, 0 for all frames")
 
@@ -28,9 +27,9 @@ def cmd_options():
 def main():
     args = cmd_options()
     print("Start calculations:")
-    res = dynamics(args.dumpfile, args.nt, args.ndt, masker=type_masker(args.itype), qmax=args.qmax,
-                   nq=args.nq, rtol=args.rtol, dt=args.dt, maxframes=args.maxframes)
-    np.savetxt(args.outputfile, res, header="time sisf sisfX4 msd alpha2 Qt QtX4")
+    res = dynamics(args.dumpfile, args.ncorr, args.nshift, masker=type_masker(args.itype),
+                   qmax=args.qmax, rtol=args.rtol, dt=args.dt, maxframes=args.maxframes)
+    np.savetxt(args.outputfile, res, header="t sisf sisfX4 Qt QtX4 msd alpha2")
     print("All done.")
 
 

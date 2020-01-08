@@ -98,7 +98,7 @@ def window_iter(iterator, width=2, stride=1):
         return _window
 
     _ = one_window()
-    while len(_) == width:
+    while len(_) > 1:
         yield _
         _ = one_window()
 
