@@ -32,7 +32,7 @@ def dynamics_one(window, mask, ncorr, qmax, rsqtol):
         res[i - 1, 2] = qt
         res[i - 1, 3] = msd
         res[i - 1, 4] = alpha2
-    
+
     return res
 
 
@@ -63,3 +63,26 @@ def dynamics(dumpfile, ncorr, nshift, masker=type_masker(), qmax=1.0, rtol=1.0, 
 
     return res
 
+
+def find_window_width(dumpfile, X4time, dt, maxframes):
+    dump = read_dump(dumpfile, maxframes=maxframes, dt=dt)
+    t = np.array([abs(d['time'] - X4time) for d in dump])
+
+    return int(t.argmin() + 1)
+
+
+def mobility(dumpfile, X4time, nshift=1, masker=type_masker(), nbins=100, dt=0.002, maxframes=0):
+    dump = read_dump(dumpfile, maxframes=maxframes, dt=dt)
+    width = find_window_width(dumpfile, X4time, dt, maxframes)
+    dsq = []
+    for window in window_iter(dump, width=width, stride=nshift):
+        if len(window) == width:
+            dpos = window[-1]['positions'] - window[0]['positions']
+            dsq.append(np.square(dpos[masker(window[0]), :]).sum(axis=1))
+    dsq = np.concatenate(dsq)
+    bins = np.logspace(np.log10(1e-2), np.log10(dsq.max()), nbins + 1)
+    h, bins = np.histogram(dsq, bins=bins)
+    p = 0.5*(bins[1::] + bins[0:-1])
+    h = 100*h/len(dsq)
+    c = np.cumsum(h)
+    return np.c_[p, h, c]

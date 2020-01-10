@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+import argparse
+import numpy as np
+from dcorr.dynamics import mobility, type_masker
+from dcorr.kww import kww, kww_fit
+
+
+def cmd_options():
+    parser = argparse.ArgumentParser(
+        description="Calculate time-dependent sisf sisfX4 msd alpha2 Qt and QtX4 values."
+    )
+
+    addarg = parser.add_argument
+    addarg("X4time", type=float, help="peak time scale of X4.")
+    addarg("dt", type=float, help="timestep size of MD run")
+    addarg("dumpfile", type=str, help="name of LAMMPS dump files")
+    addarg("outputfile", type=str, help="name of output file")
+    addarg("--nshift", type=int, default=1, help="shift time origin for this many frames")
+    addarg("--itype", type=int, default=0, help="type of atoms to include in calculation, 0 for all types")
+    addarg("--nbins", type=int, default=100, help="binsize for histogramming")
+    addarg("--maxframes", type=int, default=0, help="number of frames to read from dump, 0 for all frames")
+
+    return parser.parse_args()
+
+
+def main():
+    args = cmd_options()
+    print("Start calculations:")
+    res = mobility(args.dumpfile, args.X4time, nshift=args.nshift, masker=type_masker(args.itype),
+                   nbins=args.nbins, dt=args.dt, maxframes=args.maxframes)
+    n0 = int(res[:,1].argmax())
+    talpha, A, beta = kww_fit(res[n0::,0], res[n0::,1])
+    f = kww(res[:,0], talpha, A, beta)
+    print("tau_alpha = {}".format(talpha))
+    print("beta = {}".format(beta))
+    np.savetxt(args.outputfile, np.c_[res, f], header="msd fractions(%) cumsum(%) kww")
+    print("All done.")
+
+
+if __name__ == "__main__":
+    main()
