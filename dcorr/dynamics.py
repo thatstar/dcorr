@@ -2,6 +2,7 @@ import sys
 import numpy as np
 import numexpr as ne
 from dcorr.dump import read_dump, window_iter
+from dcorr.voronoi import voronoi_indices
 
 
 def type_masker(itype=0):
@@ -71,9 +72,8 @@ def find_window_width(dumpfile, X4time, dt, maxframes):
     return int(t.argmin() + 1)
 
 
-def mobility(dumpfile, X4time, nshift=1, masker=type_masker(), nbins=100, dt=0.002, maxframes=0):
+def mobility(dumpfile, width, nshift=1, masker=type_masker(), nbins=100, dt=0.002, maxframes=0):
     dump = read_dump(dumpfile, maxframes=maxframes, dt=dt)
-    width = find_window_width(dumpfile, X4time, dt, maxframes)
     dsq = []
     for window in window_iter(dump, width=width, stride=nshift):
         if len(window) == width:
@@ -86,3 +86,42 @@ def mobility(dumpfile, X4time, nshift=1, masker=type_masker(), nbins=100, dt=0.0
     h = 100*h/len(dsq)
     c = np.cumsum(h)
     return np.c_[p, h, c]
+
+
+def mobility_analysis(dumpfile, width, slowcut, fastcut, nshift=1, masker=type_masker(), dt=0.002, maxframes=0):
+    dump = read_dump(dumpfile, maxframes=maxframes, dt=dt)
+    voroinds = []
+    mask0 = []
+    mask1 = []
+    ic = 0
+    for window in window_iter(dump, width=width, stride=nshift):
+        if len(window) == width:
+            istart = window[0]['index']
+            iend = window[-1]['index']
+            print("Voronoi: {:3d}-th window, [{:5d} to {:5d}].".format(ic, istart, iend))
+            dpos = window[-1]['positions'] - window[0]['positions']
+            ma = masker(window[0])
+            dsq = np.square(dpos[ma, :]).sum(axis=1)
+            mask0.append(dsq <= slowcut)
+            mask1.append(dsq >= fastcut)
+            voroinds.append(voronoi_indices(window[0])[ma, :])
+            ic += 1
+    voroinds = np.vstack(voroinds)
+    mask0 = np.hstack(mask0)
+    mask1 = np.hstack(mask1)
+    va, ca = np.unique(voroinds, axis=0, return_counts=True)
+    res = {}
+    for i in range(va.shape[0]):
+        key = "{}-{}-{}-{}".format(int(va[i,0]), int(va[i,1]), int(va[i,2]), int(va[i,3]))
+        res[key] = [ca[i]/ca.sum(), 0, 0]
+    v0, c0 = np.unique(voroinds[mask0, :], axis=0, return_counts=True)
+    for i in range(v0.shape[0]):
+        key = "{}-{}-{}-{}".format(int(v0[i,0]), int(v0[i,1]), int(v0[i,2]), int(v0[i,3]))
+        res[key][1] = c0[i]/mask0.sum()
+    v1, c1 = np.unique(voroinds[mask1, :], axis=0, return_counts=True)
+    for i in range(v1.shape[0]):
+        key = "{}-{}-{}-{}".format(int(v1[i,0]), int(v1[i,1]), int(v1[i,2]), int(v1[i,3]))
+        res[key][2] = c1[i]/mask1.sum()
+    print("Numbers: {} {} {}".format(ca.sum(), mask0.sum(), mask1.sum()))
+
+    return res

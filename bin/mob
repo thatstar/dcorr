@@ -2,24 +2,24 @@
 
 import argparse
 import numpy as np
-from dcorr.dynamics import mobility, type_masker
-from dcorr.kww import kww, kww_fit
+from dcorr.dynamics import mobility, mobility_analysis, type_masker, find_window_width
 
 
 def cmd_options():
     parser = argparse.ArgumentParser(
-        description="Calculate time-dependent sisf sisfX4 msd alpha2 Qt and QtX4 values."
+        description="Calculate atom mobility at peak timescale of X4."
     )
 
     addarg = parser.add_argument
     addarg("X4time", type=float, help="peak time scale of X4.")
     addarg("dt", type=float, help="timestep size of MD run")
     addarg("dumpfile", type=str, help="name of LAMMPS dump files")
-    addarg("outputfile", type=str, help="name of output file")
+    addarg("prefix", type=str, help="prefix of output files")
     addarg("--nshift", type=int, default=1, help="shift time origin for this many frames")
     addarg("--itype", type=int, default=0, help="type of atoms to include in calculation, 0 for all types")
     addarg("--nbins", type=int, default=100, help="binsize for histogramming")
     addarg("--maxframes", type=int, default=0, help="number of frames to read from dump, 0 for all frames")
+    addarg("--vhist", action="store_true", help="produce Voronoi histogram for fast and slow atoms")
 
     return parser.parse_args()
 
@@ -27,14 +27,24 @@ def cmd_options():
 def main():
     args = cmd_options()
     print("Start calculations:")
-    res = mobility(args.dumpfile, args.X4time, nshift=args.nshift, masker=type_masker(args.itype),
+    width = find_window_width(args.dumpfile, args.X4time, args.dt, args.maxframes)
+    res = mobility(args.dumpfile, width, nshift=args.nshift, masker=type_masker(args.itype),
                    nbins=args.nbins, dt=args.dt, maxframes=args.maxframes)
-    n0 = int(res[:,1].argmax())
-    talpha, A, beta = kww_fit(res[n0::,0], res[n0::,1])
-    f = kww(res[:,0], talpha, A, beta)
-    print("tau_alpha = {}".format(talpha))
-    print("beta = {}".format(beta))
-    np.savetxt(args.outputfile, np.c_[res, f], header="msd fractions(%) cumsum(%) kww")
+    cs = np.cumsum(res[:,1])
+    s10 = res[int((cs < 10).sum()), 0]
+    f10 = res[int((cs < 90).sum()), 0]
+    np.savetxt(args.prefix + ".mobility.txt", np.c_[res, cs], header="msd fractions(%) cumsum(%)")
+    print("Slow atoms (10 percent) cut: {}".format(s10))
+    print("Fast atoms (10 percent) cut: {}".format(f10))
+    if args.vhist:
+        res = mobility_analysis(args.dumpfile, width, s10, f10, nshift=args.nshift,
+                                masker=type_masker(args.itype), dt=args.dt, maxframes=args.maxframes)
+        with open(args.prefix + ".vhist.txt", "w") as o:
+            o.write("# Voronoi all slow fast\n")
+            for i in res.keys():
+                o.write("{} {:12.8f} {:12.8f} {:12.8f}\n".format(
+                    i, res[i][0], res[i][1], res[i][2])
+                )
     print("All done.")
 
 
