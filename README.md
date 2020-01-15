@@ -3,9 +3,9 @@ Calculate dynamical correlation functions from LAMMPS text dump files.
 Usage: dcorr 1000 1 0.002 T1000K.dump dcorr.dat [options].
 
 ```
-usage: dcorr [-h] [--itype ITYPE] [--qmax QMAX] [--nq NQ] [--rtol RTOL]
+usage: dcorr [-h] [--itype ITYPE] [--qmax QMAX] [--rtol RTOL]
              [--maxframes MAXFRAMES]
-             nt ndt dt dumpfile outputfile
+             ncorr nshift dt dumpfile outputfile
 
 Calculate time-dependent sisf sisfX4 msd alpha2 Qt and QtX4 values.
 
