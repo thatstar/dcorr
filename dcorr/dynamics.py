@@ -85,6 +85,7 @@ def mobility(dumpfile, width, nshift=1, masker=type_masker(), nbins=100, dt=0.00
     p = 0.5*(bins[1::] + bins[0:-1])
     h = 100*h/len(dsq)
     c = np.cumsum(h)
+
     return np.c_[p, h, c]
 
 

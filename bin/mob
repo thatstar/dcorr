@@ -30,10 +30,10 @@ def main():
     width = find_window_width(args.dumpfile, args.X4time, args.dt, args.maxframes)
     res = mobility(args.dumpfile, width, nshift=args.nshift, masker=type_masker(args.itype),
                    nbins=args.nbins, dt=args.dt, maxframes=args.maxframes)
-    cs = np.cumsum(res[:,1])
+    cs = res[:, 2]
     s10 = res[int((cs < 10).sum()), 0]
     f10 = res[int((cs < 90).sum()), 0]
-    np.savetxt(args.prefix + ".mobility.txt", np.c_[res, cs], header="msd fractions(%) cumsum(%)")
+    np.savetxt(args.prefix + ".mobility.txt", res, header="msd fractions(%) cumsum(%)")
     print("Slow atoms (10 percent) cut: {}".format(s10))
     print("Fast atoms (10 percent) cut: {}".format(f10))
     if args.vhist:
